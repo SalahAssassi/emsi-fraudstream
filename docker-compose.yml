@@ -37,3 +37,37 @@ services:
       # --- Mémoire Java ---
       KAFKA_HEAP_OPTS: "-Xmx512m"
     mem_limit: 1g
+
+  # ─────────────────────────────────────────────
+  # PostgreSQL : base source "bank" (clients, cartes) pour le CDC
+  # ─────────────────────────────────────────────
+  postgres:
+    image: postgres:16
+    profiles: ["core"]
+    hostname: postgres
+    ports:
+      - "5432:5432"                   # accès depuis Windows (seed, tests)
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    command:                          # réglages indispensables pour Debezium
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"           # journal lisible ligne par ligne (CDC)
+      - "-c"
+      - "max_wal_senders=4"
+      - "-c"
+      - "max_replication_slots=4"
+    volumes:
+      - pg_data:/var/lib/postgresql/data                              # données persistantes
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro  # tables
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pg_data:
